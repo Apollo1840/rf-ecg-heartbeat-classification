@@ -14,19 +14,22 @@ from .common import SignalBuffer
 from .common import safe_normalizer
 import statistics as stats
 
+
 def derivative(X, dt):
     dXdt = array('f', [0 for x in range(len(X))])
     for n in range(len(X)):
         if n > 0:
-            dXdt[n] = (X[n] - X[n -1]) / dt # / 20 (when ploting)
+            dXdt[n] = (X[n] - X[n - 1]) / dt  # / 20 (when ploting)
     dXdt[0] = dXdt[1]
     return dXdt
+
 
 def zeroCrossPoints(X):
     def isPositive(x):
         if x >= 0:
             return True
         return False
+
     lastSign = isPositive(X[0])
     zeroCross = array('B', [False for i in range(len(X))])
     for n in range(len(X)):
@@ -35,11 +38,13 @@ def zeroCrossPoints(X):
         lastSign = isPositive(X[n])
     return zeroCross
 
+
 class ExtractQRS():
     """ QRS detection based on the Pan&Tompkins algorithm """
+
     def __init__(self):
         self.fs = 150
-        self.signalBuffer = SignalBuffer(96)            
+        self.signalBuffer = SignalBuffer(96)
         self.pPeakBuffer = SignalBuffer(32)
         self.rPeakBuffer = SignalBuffer(32)
         self.qPeakBuffer = SignalBuffer(32)
@@ -54,12 +59,11 @@ class ExtractQRS():
         self.rqDiffBuffer = SignalBuffer(32)
         self.rsDiffBuffer = SignalBuffer(32)
 
-        
     def findQRSInSignalBuffer(self):
         signal_mean = self.signalBuffer.mean()
         signal = array('f', [s - signal_mean for s in self.signalBuffer.getBuffer()])
         L = len(signal)
-        startIndex = L - 55                 
+        startIndex = L - 55
         endIndex = L - 25
         signalMax = max(signal[startIndex:endIndex])
         sMaxIndex = signal[startIndex:endIndex].index(signalMax) + startIndex
@@ -74,9 +78,9 @@ class ExtractQRS():
         maxQRSWidth = 30
         startIndex = int(signalPeakIndex - maxQRSWidth / 2)
         if startIndex < 0:
-            startIndex = 0 
+            startIndex = 0
         endIndex = int(signalPeakIndex + maxQRSWidth / 2)
-        if endIndex >=  L:
+        if endIndex >= L:
             endIndex = L
         dt = 1 / self.fs
         signalDerivative = derivative(signal, dt)
@@ -96,9 +100,9 @@ class ExtractQRS():
         lastSample = signalPeak
         halfQrsStartIndex = 0
         quarterQrsStartIndex = 0
-        for n in range(signalPeakIndex, startIndex, -1):    
+        for n in range(signalPeakIndex, startIndex, -1):
             qrsWaveform[k] = signal[n]
-            k -= 1  
+            k -= 1
             if math.fabs(signal[n]) <= math.fabs(signalPeak) / 2 and halfQrsStartIndex == 0:
                 halfQrsStartIndex = k
             if math.fabs(signal[n]) <= math.fabs(signalPeak) / 4 and quarterQrsStartIndex == 0:
@@ -107,16 +111,16 @@ class ExtractQRS():
                 zeroCrosses += 1
                 if zeroCrosses == 1 and rPeak > 0:
                     # First peak before R peak
-                    if signal[n-1] < 0:
+                    if signal[n - 1] < 0:
                         # If negative then it's a Q peak
-                        qPeak = signal[n-1]
-                        qIndex = n - 1                    
+                        qPeak = signal[n - 1]
+                        qIndex = n - 1
                 elif zeroCrosses == 1 and rPeak == 0:
                     # First peak before a main negative peak (Q or S)
-                    if signal[n-1] > 0:
+                    if signal[n - 1] > 0:
                         # It's a R peak
                         rPeak = signal[n - 1]
-                        rIndex = n -1
+                        rIndex = n - 1
                         # Main peak is a S peak
                         sPeak = signalPeak
                         sIndex = signalPeakIndex
@@ -125,16 +129,16 @@ class ExtractQRS():
                         qPeak = signalPeak
                         qIndex = signalPeakIndex
                 if zeroCrosses == 2:
-                    if qPeak == 0 and signal[n-1] < 0:
-                        qPeak = signal[n-1]
+                    if qPeak == 0 and signal[n - 1] < 0:
+                        qPeak = signal[n - 1]
                         qIndex = n - 1
                     else:
                         # Found a second positive peak before R or Q Peak
-                        qrsStartIndex = n -1
+                        qrsStartIndex = n - 1
                         break
-            
+
             lastSample = signal[n]
-            
+
         if qIndex == 0:
             qIndex = qrsStartIndex
         qrsEndIndex = endIndex
@@ -144,7 +148,7 @@ class ExtractQRS():
         qrsEndReady = False
         halfQrsEndIndex = 30
         quarterQrsEndIndex = 30
-        for n in range(signalPeakIndex + 1, endIndex):  
+        for n in range(signalPeakIndex + 1, endIndex):
             qrsWaveform[k] = signal[n]
             k += 1
             if math.fabs(signal[n]) <= math.fabs(signalPeak) / 2 and halfQrsEndIndex == 30:
@@ -159,17 +163,17 @@ class ExtractQRS():
                 zeroCrosses += 1
                 if zeroCrosses == 1 and rPeak == signalPeak:
                     # First peak after R peak
-                    if signal[n-1] < 0:
+                    if signal[n - 1] < 0:
                         # If negative then it's a S peak
-                        sPeak = signal[n-1]
-                        sIndex = n -1 
-                # Otherwise assume QRS is over
+                        sPeak = signal[n - 1]
+                        sIndex = n - 1
+                        # Otherwise assume QRS is over
                 qrsEndReady = True
                 if zeroCrosses == 2:
                     # Found a second peak after R or S so assume it's the end
-                    qrsEndIndex = n -1
+                    qrsEndIndex = n - 1
                     break
-            
+
             lastSample = signal[n]
         if sIndex == 0:
             sIndex = qrsEndIndex
@@ -194,12 +198,13 @@ class ExtractQRS():
         qrsWidth = (qrsEndIndex - qrsStartIndex) * dt
         halfQrsWidth = (halfQrsEndIndex - halfQrsStartIndex) * dt
         quarterQrsWidth = (quarterQrsEndIndex - quarterQrsStartIndex) * dt
-        if False: #Debug
+
+        if False:  # Debug
             import matplotlib.pyplot as plt
             plt.plot(signal, '-', pIndex, pPeak, 'r*', qIndex, qPeak, 'ro', rIndex, rPeak, 'rx', sIndex,
                      sPeak, 'r+', qrsStartIndex, signal[qrsStartIndex], 'g.', qrsEndIndex, signal[qrsEndIndex], 'g.')
             plt.show()
-        
+
         pqDiff = pPeak - qPeak
         rqDiff = rPeak - qPeak
         rsDiff = rPeak - sPeak
@@ -217,7 +222,7 @@ class ExtractQRS():
         self.rqDiffBuffer.push(rqDiff)
         self.rsDiffBuffer.push(rsDiff)
         return {
-            'QRSw': qrsWidth, 
+            'QRSw': qrsWidth,
             'QRSw2': halfQrsWidth,
             'QRSw4': quarterQrsWidth,
             'QSw': qsWidth,
@@ -229,10 +234,10 @@ class ExtractQRS():
             'PQa': pqDiff,
             'RQa': rqDiff,
             'RSa': rsDiff,
-            'Ppeak_norm': safe_normalizer(pPeak,self.pPeakBuffer.mean()),
-            'Rpeak_norm': safe_normalizer(rPeak,self.rPeakBuffer.mean()),
-            'Qpeak_norm': safe_normalizer(qPeak,self.qPeakBuffer.mean()),
-            'Speak_norm': safe_normalizer(sPeak,self.sPeakBuffer.mean()),
+            'Ppeak_norm': safe_normalizer(pPeak, self.pPeakBuffer.mean()),
+            'Rpeak_norm': safe_normalizer(rPeak, self.rPeakBuffer.mean()),
+            'Qpeak_norm': safe_normalizer(qPeak, self.qPeakBuffer.mean()),
+            'Speak_norm': safe_normalizer(sPeak, self.sPeakBuffer.mean()),
             'PQa_norm': safe_normalizer(pqDiff, self.pqDiffBuffer.mean()),
             'RQa_norm': safe_normalizer(rqDiff, self.rqDiffBuffer.mean()),
             'RSa_norm': safe_normalizer(rsDiff, self.rsDiffBuffer.mean()),
@@ -241,16 +246,18 @@ class ExtractQRS():
             'QRSw_norm': safe_normalizer(qrsWidth, self.qrsWidthBuffer.mean()),
             'QRSw2_norm': safe_normalizer(halfQrsWidth, self.qrsWidth2Buffer.mean()),
             'QRSw4_norm': safe_normalizer(quarterQrsWidth, self.qrsWidth4Buffer.mean()),
-            'QRSs': maxSlope, 
+            'QRSs': maxSlope,
             'QRSs_norm': safe_normalizer(maxSlope, self.qrsSlopeBuffer.mean())
         }
 
     def __call__(self, beatTime, signal):
-        beatSample = int(beatTime * 150)
-        for n in range(beatSample - 128, beatSample + 40):
+        fs = 150
+        window = (-128, 40)
+
+        beatSample = int(beatTime * fs)
+        beat_start = beatSample + window[0]
+        beat_end = beatSample + window[1]
+        for n in range(beat_start, beat_end):
             rawSample = signal[n]
             self.signalBuffer.push(rawSample)
         return self.findQRSInSignalBuffer()
-                         
-
-

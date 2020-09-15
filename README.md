@@ -16,6 +16,7 @@ The following Python libraires are required to execute the code:
 # How to run the code
 Execute the Python files in the _/src_ folder in the order suggested by their names:
 
+0. mkdir datasets
 1. _step1_read_mitdb.py_: Create test and train sets by reading MIT-BIH Arrhythmia Database according to the literature defined inter-patient paradigm.
 2. _step2_extract_heartbeat_features.py_: Extract heatbeat features from ECG signals using the extractors defined in the _/src/feature_extractors_ folder
 3. _step3_rank_features.py_: Construct features vectors, calculates the mutual information of features relative to S and V labels, and rank features accordingly.

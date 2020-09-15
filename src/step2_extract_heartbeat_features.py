@@ -20,25 +20,29 @@ from feature_extractors.modejarguerra_features import compute_hos_descriptor as 
 from feature_extractors.modejarguerra_features import compute_my_own_descriptor as mg_features
 from feature_extractors.modejarguerra_features import compute_HBF as hbf_features
 from feature_extractors.modejarguerra_features import compute_Uniform_LBP as lbp_features
-from time import process_time 
+
+from time import process_time
 import matplotlib.pyplot as plt
 
 # Dataset destination (output path)
 dataset_path = '../datasets/'
+
 # Debugging options
 DEBUG = False
 DEBUG_RECORD = '207'
 DEBUG_BEAT = 0
-# Dataset destination (output path)
-dataset_path = '../datasets/'
+
 # Timer for measuring the execution time of feature extractors
 timer = process_time()
+
+
 def tic():
     """
     Reset timer
     """
     global timer
     timer = process_time()
+
 
 def toc(reset=False):
     """
@@ -50,17 +54,25 @@ def toc(reset=False):
         tic()
     return t
 
+
 def get_qrs_waveform(beatTime, signal, window=180):
     """
     Extract a segment of signal around the beat time (R spike time)
+
+    :param: beatTime: int, r_peak time within the beat.
+    :param: signal: List[float], since the beatTime is regarding to the whole signal,
+        so the signal should also be the whole signal
+    :param: window: int, the size of output list
+    :return: List[float]: len==window, the signal surround the r_peak defined by beatTime
     """
-    beatSample = int(beatTime * 150)
+    fs = 150
+    beatSample = int(beatTime * fs)
     qrsWaveform = np.zeros(window)
     k = int(window / 2)
     for n in range(beatSample, -1, -1):
         if k >= 0:
             qrsWaveform[k] = signal[n]
-        else: 
+        else:
             break
         k -= 1
     k = int(window / 2 + 1)
@@ -72,44 +84,72 @@ def get_qrs_waveform(beatTime, signal, window=180):
         k += 1
     return qrsWaveform
 
+
 def extract_beat_features(signals, labels, records):
     """
     Extract features from all labeled heartbeats in a set of records
+
+    :param signals: List[np.array]
+    :param labels: List[List[dict]], dict.keys(): time, beat, rhythm
+    :param records: List[str]
     """
+
     beats = []
     morph_features = ExtractQRS()
     rr_features = RRFeatures()
     for recordIndex, recordName in enumerate(records):
         if DEBUG and recordName != DEBUG_RECORD:
             continue
+
         print(f'Processing record {recordName} ({recordIndex} of {len(records)})')
         for labelIndex, label in enumerate(labels[recordIndex]):
-            labeledBeatTime = label['time']
+
+            labeledBeatTime = label['time']   # unit: ms
             labeledBeat = label['beat']
+
             # ignore noise and label artifacts
             if labeledBeat == BeatType.OTHER:
                 continue
+
             tic()
+
+            # 1) whole_signal related features: rr_featues, morph_features
+
+            # labels[recordIndex]: List[dict]
             rr = rr_features(labels[recordIndex], labelIndex)
             rr_time = toc(True)
+
             morph = morph_features(labeledBeatTime, signals[recordIndex])
-            morph_time = toc(True)        
-            qrsWaveform = get_qrs_waveform(labeledBeatTime, signals[recordIndex], 76)
+            morph_time = toc(True)
+
+            # 2) independent features:
+
+            # it is not garantee to be qrs_wave it could be p_qrs_t wave or part of qrs_wave,
+            # it is all defined by window parameter, here it is just assumed that:
+            # qrs_wave is the signal surround the r_peak with 38 samples. (-38, 38)
+            qrsWaveform = get_qrs_waveform(labeledBeatTime, signals[recordIndex], window=76)
+
             if DEBUG and labelIndex >= DEBUG_BEAT:
                 plt.plot(signals[recordIndex])
                 plt.title(labeledBeat.symbol())
                 plt.show()
                 pass
+
             wt = wt_features(qrsWaveform)
             wt_time = toc(True)
+
             hos = hos_features(qrsWaveform)
             hos_time = toc(True)
+
             mg = mg_features(qrsWaveform)
             mg_time = toc(True)
+
             hbf = hbf_features(qrsWaveform)
             hbf_time = toc(True)
+
             lbp = lbp_features(qrsWaveform)
             lbp_time = toc(True)
+
             beat = {
                 'beatType': labeledBeat,
                 'source': recordName,
@@ -131,22 +171,27 @@ def extract_beat_features(signals, labels, records):
             beats.append(beat)
     return beats
 
-print('Extracting train set heartbeats features...')
-pickle_in = open(dataset_path + 'train_set_signals.pickle', "rb")
-data = pickle.load(pickle_in)
-pickle_in.close()
-beats = extract_beat_features(data['signals'], data['labels'], data['records'])
-print('saving train_set file...')
-pickle_out = open(dataset_path + 'train_set_beats.pickle', "wb")
-pickle.dump({'beats': beats}, pickle_out)
-pickle_out.close()
 
-print('Extracting test set heartbeats features...')
-pickle_in = open(dataset_path + 'test_set_signals.pickle', "rb")
-data = pickle.load(pickle_in)
-pickle_in.close()
-beats = extract_beat_features(data['signals'], data['labels'], data['records'])
-print('saving test_set file...')
-pickle_out = open(dataset_path + 'test_set_beats.pickle', "wb")
-pickle.dump({'beats': beats}, pickle_out)
-pickle_out.close()
+if __name__ == "__main__":
+    print('Extracting train set heartbeats features...')
+    pickle_in = open(dataset_path + 'train_set_signals.pickle', "rb")
+    data = pickle.load(pickle_in)
+    pickle_in.close()
+
+    beats = extract_beat_features(data['signals'], data['labels'], data['records'])
+
+    print('saving train_set file...')
+    pickle_out = open(dataset_path + 'train_set_beats.pickle', "wb")
+    pickle.dump({'beats': beats}, pickle_out)
+    pickle_out.close()
+
+    print('Extracting test set heartbeats features...')
+    pickle_in = open(dataset_path + 'test_set_signals.pickle', "rb")
+    data = pickle.load(pickle_in)
+    pickle_in.close()
+
+    beats = extract_beat_features(data['signals'], data['labels'], data['records'])
+    print('saving test_set file...')
+    pickle_out = open(dataset_path + 'test_set_beats.pickle', "wb")
+    pickle.dump({'beats': beats}, pickle_out)
+    pickle_out.close()

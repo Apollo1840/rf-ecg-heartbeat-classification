@@ -15,10 +15,11 @@ from scipy import signal as signal
 import numpy as np
 import pickle
 import sys
-import ecgtypes
+from ecgtypes import *
 
 # Database online public directory (input path)
 db_name = "mitdb"
+
 # Database records for training (DS1) and testing (DS2)
 DS1 = {
     "101",
@@ -74,17 +75,24 @@ dataset_path = "../datasets/"
 
 def get_database_data(db, records):
     """ 
-    Read signals and labels from database records in the public directory  
+    Read signals and labels from database records in the public directory
+
+    ERROR: the leads order of recording 104 is reversed, this function does not care that
+
     """
     # Prepare containers
     signals, labels = [], []
+
     # Iterate files
     for record_name in records:
         print("*** Reading record: " + record_name)
         channel = 0
         record = wfdb.rdrecord(record_name, pb_dir=db)
         annotations = wfdb.rdann(record_name, "atr", pb_dir=db)
+
         data = record.p_signal[:, channel]
+
+        # why use header?
         header = {
             "label": record.sig_name[channel],
             "dimension": record.units[channel],
@@ -93,24 +101,28 @@ def get_database_data(db, records):
             "digital_min": 0,
             "transducer": "transducer type not recorded",
             "prefilter": "prefiltering not recorded",
+            "physical_max": None,
+            "pyhsical_min": None,
         }
-        header["physical_max"] = (
-            header["digital_max"] - record.baseline[channel]
-        ) / record.adc_gain[channel]
-        header["physical_min"] = (
-            header["digital_min"] - record.baseline[channel]
-        ) / record.adc_gain[channel]
+        header["physical_max"] = (header["digital_max"] - record.baseline[channel]) / record.adc_gain[channel]
+        header["physical_min"] = (header["digital_min"] - record.baseline[channel]) / record.adc_gain[channel]
+
+        # why resample: let the ECG to have unified modified fs: 150
+
         duration = len(data) / record.fs
-        # add zeros to the end in order to achieve a duration of an integer number of seconds that facicilatetes resampling
+        # add zeros to the end in order to achieve a duration of an integer number of seconds
+        # that facicilatetes resampling
         new_length = int(np.ceil(duration) * record.fs)
         xo = np.zeros(new_length)
-        xo[0 : len(data)] = data
+        xo[0: len(data)] = data
+
         fs = 150
         print("resampling signal...")
         xr = signal.resample(xo, int(np.ceil(duration) * fs))
+
         print("reading annotations...")
-        rhythmClass = ecgtypes.HeartRhythm.NORMAL
-        label = []
+        rhythmClass = HeartRhythm.NORMAL   # 0
+        label = []   # list of dict
         for s in range(len(annotations.sample)):
             t = annotations.sample[s] / record.fs
             ann = annotations.symbol[s]
@@ -119,14 +131,14 @@ def get_database_data(db, records):
                 if annotations.aux_note[s][0] == "(":
                     rhythmClass = annotations.aux_note[s].strip("\x00")[1:]
 
-            if len(ann) == 0:
+            if len(ann) == 0:  # empty string
                 continue
             elif ann:
                 label.append(
                     {
                         "time": t,
-                        "beat": ecgtypes.BeatType.new_from_symbol(ann),
-                        "rhythm": ecgtypes.HeartRhythm.new_from_symbol(rhythmClass),
+                        "beat": BeatType.new_from_symbol(ann),  # the index of AAMI class type
+                        "rhythm": HeartRhythm.new_from_symbol(rhythmClass),  # the index of Rhythm class
                     }
                 )
 
@@ -136,15 +148,21 @@ def get_database_data(db, records):
     return signals, labels
 
 
-print("Creating training set ...")
-signals, labels = get_database_data(db_name, DS1)
-print("saving train_set file...")
-pickle_out = open(dataset_path + "train_set_signals.pickle", "wb")
-pickle.dump({"signals": signals, "labels": labels, "records": DS1}, pickle_out)
-pickle_out.close()
-print("Creating test set ...")
-signals, labels = get_database_data(db_name, DS2)
-print("saving test_set file...")
-pickle_out = open(dataset_path + "test_set_signals.pickle", "wb")
-pickle.dump({"signals": signals, "labels": labels, "records": DS2}, pickle_out)
-pickle_out.close()
+if __name__ == "__main__":
+    # train data
+    print("Creating training set ...")
+    signals, labels = get_database_data(db_name, DS1)
+
+    print("saving train_set file...")
+    pickle_out = open(dataset_path + "train_set_signals.pickle", "wb")
+    pickle.dump({"signals": signals, "labels": labels, "records": DS1}, pickle_out)
+    pickle_out.close()
+
+    # test data
+    print("Creating test set ...")
+    signals, labels = get_database_data(db_name, DS2)
+    print("saving test_set file...")
+
+    pickle_out = open(dataset_path + "test_set_signals.pickle", "wb")
+    pickle.dump({"signals": signals, "labels": labels, "records": DS2}, pickle_out)
+    pickle_out.close()

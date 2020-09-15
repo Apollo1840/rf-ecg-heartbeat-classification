@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class HeartRhythm(Enum):
     NORMAL = 0
     BIGEMINY = 1
@@ -12,6 +13,7 @@ class HeartRhythm(Enum):
     SECOND_DEGREE_BLOCK = 8
     PACED = 9
     OTHER = 10
+
     def symbol(self):
         symbols = {
             self.NORMAL.value: 'N',
@@ -27,12 +29,14 @@ class HeartRhythm(Enum):
             self.OTHER.value: 'O'
         }
         return symbols[self.value]
+
     @classmethod
     def new_from_symbol(cls, symbol):
         for rhythm in cls:
             if symbol == rhythm.symbol():
                 return rhythm
         return cls.OTHER
+
 
 class BeatType(Enum):
     NORMAL = 0
@@ -41,6 +45,7 @@ class BeatType(Enum):
     FUSION = 3
     UNKNOWN = 4
     OTHER = 5
+
     def symbol(self):
         symbols = {
             self.NORMAL.value: 'N',
@@ -51,6 +56,7 @@ class BeatType(Enum):
             self.OTHER.value: '?'
         }
         return symbols[self.value]
+
     @classmethod
     def new_from_symbol(cls, symbol):
         # cls here is the enumeration

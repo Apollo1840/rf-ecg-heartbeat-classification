@@ -20,6 +20,12 @@ class RRFeatures():
         self.rrBuffer = SignalBuffer(32)
 
     def __call__(self, beats, beat_index):
+        """
+
+        :param: beats: List[dict]
+        :param: beat_index: int
+        """
+
         labeledBeatTime = beats[beat_index]['time']
         if beat_index < 2:
             prevLabeledBeatTime = 0
