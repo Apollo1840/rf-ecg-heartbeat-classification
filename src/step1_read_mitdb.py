@@ -21,7 +21,7 @@ from ecgtypes import *
 db_name = "mitdb"
 
 # Database records for training (DS1) and testing (DS2)
-DS1 = {
+DS1 = [
     "101",
     "106",
     "108",
@@ -44,8 +44,9 @@ DS1 = {
     "220",
     "223",
     "230",
-}
-DS2 = {
+]
+
+DS2 = [
     "100",
     "103",
     "105",
@@ -68,7 +69,7 @@ DS2 = {
     "232",
     "233",
     "234",
-}
+]
 # Dataset destination (output path)
 dataset_path = "../datasets/"
 
@@ -79,6 +80,10 @@ def get_database_data(db, records):
 
     ERROR: the leads order of recording 104 is reversed, this function does not care that
 
+    Return:
+        signals: resampled signal with 150 Hz
+        labels: List[dict]:
+
     """
     # Prepare containers
     signals, labels = [], []
@@ -87,8 +92,8 @@ def get_database_data(db, records):
     for record_name in records:
         print("*** Reading record: " + record_name)
         channel = 0
-        record = wfdb.rdrecord(record_name, pb_dir=db)
-        annotations = wfdb.rdann(record_name, "atr", pb_dir=db)
+        record = wfdb.rdrecord(record_name, pn_dir=db)
+        annotations = wfdb.rdann(record_name, "atr", pn_dir=db)
 
         data = record.p_signal[:, channel]
 
@@ -108,17 +113,7 @@ def get_database_data(db, records):
         header["physical_min"] = (header["digital_min"] - record.baseline[channel]) / record.adc_gain[channel]
 
         # why resample: let the ECG to have unified modified fs: 150
-
-        duration = len(data) / record.fs
-        # add zeros to the end in order to achieve a duration of an integer number of seconds
-        # that facicilatetes resampling
-        new_length = int(np.ceil(duration) * record.fs)
-        xo = np.zeros(new_length)
-        xo[0: len(data)] = data
-
-        fs = 150
-        print("resampling signal...")
-        xr = signal.resample(xo, int(np.ceil(duration) * fs))
+        xr = resample_signal(data, record.fs, new_fs=150)
 
         print("reading annotations...")
         rhythmClass = HeartRhythm.NORMAL   # 0
@@ -136,16 +131,35 @@ def get_database_data(db, records):
             elif ann:
                 label.append(
                     {
-                        "time": t,
+                        "time": t,  # appear time of r_peak
                         "beat": BeatType.new_from_symbol(ann),  # the index of AAMI class type
                         "rhythm": HeartRhythm.new_from_symbol(rhythmClass),  # the index of Rhythm class
                     }
                 )
 
         # Cumulate
+        print("with {} labels for record {}".format(len(label), record_name))
+
         signals.append(xr)
         labels.append(label)
+
     return signals, labels
+
+
+def resample_signal(signal_, old_fs, new_fs):
+    duration = len(signal_) / old_fs
+    duration_int = np.ceil(duration)  # why use duration_int ? because signal.resample function only accept integer
+
+    # add zeros to the end in order to achieve a duration of an integer number of seconds
+    # that facicilatetes resampling
+    new_length = int(duration_int * old_fs)
+    xo = np.zeros(new_length)
+    xo[0:len(signal_)] = signal_
+
+    print("resampling signal... with new sampling rate (fs) 150 ")
+    xr = signal.resample(xo, int(duration_int * new_fs))
+
+    return xr
 
 
 if __name__ == "__main__":

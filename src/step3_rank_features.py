@@ -53,6 +53,8 @@ if __name__ == "__main__":
 
     train_features, train_features_names, train_labels, train_sources = construct_vectors(data["beats"])
 
+    print(train_features.shape)
+
     # Estimate the most informative features for S and V from training set...
     print("preparing data for MI estimation ...")
     labels_L = train_labels.tolist()
@@ -68,14 +70,16 @@ if __name__ == "__main__":
 
     # return list of information scores of features
     print("Estimating the most informative features for S and V from training set...")
-    mi_features = mutual_info_classif(features_SV, labels_SV, random_state=42)
+    mi_score_of_features = mutual_info_classif(features_SV, labels_SV, random_state=42)
 
     # sorted and ordered as higher first
-    mi_rank = np.argsort(mi_features)[-1:0:-1]
+    mi_rank = np.argsort(mi_score_of_features)[-1:0:-1]
+
+    print("MI rank: ", mi_rank)
 
     ranked_features_names = train_features_names[mi_rank]
     print("MI ranked features: " + str(ranked_features_names))
-    print("MI of ranked features: " + str(mi_features[mi_rank]))
+    print("MI of ranked features: " + str(mi_score_of_features[mi_rank]))
     print("saving features rank file...")
 
     # store it
@@ -83,7 +87,7 @@ if __name__ == "__main__":
     pickle.dump(
         {
             "ranked_features_names": ranked_features_names,
-            "mi_ranked_features": mi_features[mi_rank],
+            "mi_ranked_features": mi_score_of_features[mi_rank],
             "mi_rank": mi_rank,
         },
         pickle_out,

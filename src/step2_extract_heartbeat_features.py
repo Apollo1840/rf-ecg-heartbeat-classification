@@ -89,8 +89,9 @@ def extract_beat_features(signals, labels, records):
     """
     Extract features from all labeled heartbeats in a set of records
 
-    :param signals: List[np.array]
-    :param labels: List[List[dict]], dict.keys(): time, beat, rhythm
+    :param signals: List[np.array], dim: record, dim_signal
+    :param labels: List[List[dict]], dim: record, label;
+            dim of dict.keys(): time, beat, rhythm (time is the only necessary key)
     :param records: List[str]
     """
 
@@ -102,10 +103,11 @@ def extract_beat_features(signals, labels, records):
             continue
 
         print(f'Processing record {recordName} ({recordIndex} of {len(records)})')
+        print("with {} labels for record {}".format(len(labels[recordIndex]), recordName))
         for labelIndex, label in enumerate(labels[recordIndex]):
 
-            labeledBeatTime = label['time']   # unit: ms
-            labeledBeat = label['beat']
+            labeledBeatTime = label['time']   # unit: s
+            labeledBeat = label["beat"]
 
             # ignore noise and label artifacts
             if labeledBeat == BeatType.OTHER:
@@ -119,6 +121,8 @@ def extract_beat_features(signals, labels, records):
             rr = rr_features(labels[recordIndex], labelIndex)
             rr_time = toc(True)
 
+            # labeledBeatTime: int.
+            # signals[recordIndex]: np.array, signal of the record
             morph = morph_features(labeledBeatTime, signals[recordIndex])
             morph_time = toc(True)
 
@@ -173,6 +177,8 @@ def extract_beat_features(signals, labels, records):
 
 
 if __name__ == "__main__":
+
+    # train
     print('Extracting train set heartbeats features...')
     pickle_in = open(dataset_path + 'train_set_signals.pickle', "rb")
     data = pickle.load(pickle_in)
@@ -180,11 +186,16 @@ if __name__ == "__main__":
 
     beats = extract_beat_features(data['signals'], data['labels'], data['records'])
 
+    print(len(beats))
+
     print('saving train_set file...')
     pickle_out = open(dataset_path + 'train_set_beats.pickle', "wb")
     pickle.dump({'beats': beats}, pickle_out)
     pickle_out.close()
 
+    # exit()
+
+    # test
     print('Extracting test set heartbeats features...')
     pickle_in = open(dataset_path + 'test_set_signals.pickle', "rb")
     data = pickle.load(pickle_in)
